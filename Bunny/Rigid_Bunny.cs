@@ -121,9 +121,10 @@ public class Rigid_Bunny : MonoBehaviour
         for (int i = 0; i < vertices.Length; i++)
         {
             //Vector3 Vertice_i = vertices[i];
-            Vector3 R_ri = X_center + R.MultiplyVector(vertices[i]);
+            Vector3 R_ri = R.MultiplyPoint(vertices[i]);
+            Vector3 X_i = X_center + R_ri;
             //sdf求解
-            if (Vector3.Dot(R_ri - P, N) < 0.0f)
+            if (Vector3.Dot(X_i - P, N) < 0.0f)
             {
                 //𝐯𝑖 ⟵ 𝐯 + 𝛚_1 × 𝐑𝐫i  
                 Vector3 V_i = V_1 + Vector3.Cross(W_1, R_ri);
@@ -178,9 +179,10 @@ public class Rigid_Bunny : MonoBehaviour
         }
         if (Input.GetKey("l"))
         {
-            v = new Vector3(1, 0, 0);
+            v = new Vector3(5, 2, 0);
+            w = new Vector3(0, 1, 0);
             launched = true;
-            Debug.Log("hello unity");
+            Debug.Log("hello bunny");
         }
 
 
@@ -189,9 +191,8 @@ public class Rigid_Bunny : MonoBehaviour
             //Vector3 V_1 = v;
             //Vector3 W_1 = w;
             // Part I: Update velocities  (采用leapfrog method，先计算出速度，然后更新位置)
-            Vector3 F_gravity = new Vector3(0.0f, -mass * gravity, 0.0f);
-
             //calculate torque or to update the angular velocity
+            Vector3 F_gravity = new Vector3(0.0f, -mass * gravity, 0.0f);
             V_1 = v + F_gravity / mass * dt;
             V_1 *= linear_decay; //To produce damping effects ， 如果是基于物理的模拟应该是建立f(x,v)的函数来计算力。这里直接使用decay来模拟。
             W_1 = w * angular_decay;
@@ -200,12 +201,12 @@ public class Rigid_Bunny : MonoBehaviour
 
             // Part II: Collision Impulse，输入地面和墙体的sdf， 计算碰撞。
             //碰撞之前需要更新惯性张量 I_1 = R * I_ref * R^T 
-            Matrix4x4 R = Matrix4x4.Rotate(transform.rotation);
-            Matrix4x4 I_1 = R * I_ref * Matrix4x4.Transpose(R);
-            I_ref = I_1;
+            //Matrix4x4 R = Matrix4x4.Rotate(transform.rotation);
+            //Matrix4x4 I_1 = R * I_ref * Matrix4x4.Transpose(R);
+            //I_ref = I_1;
 
             Collision_Impulse(new Vector3(0, 0.01f, 0), new Vector3(0, 1, 0));
-            //Collision_Impulse(new Vector3(2, 0, 0), new Vector3(-1, 0, 0));
+            Collision_Impulse(new Vector3(2, 0, 0), new Vector3(-1, 0, 0));
 
             //更新碰撞后的速度
             v = V_1;
@@ -214,13 +215,12 @@ public class Rigid_Bunny : MonoBehaviour
             // Part III: Update position & orientation, 采用leapfrog method。
             //Update linear status
             Vector3 x_0 = transform.position;
+            Quaternion q_0 = transform.rotation;
             //Position_frame1 = Position_frame0 + DeltaTime * velocity
             Vector3 x_1 = x_0 + dt * v;
-            //Update angular status
-            Quaternion q_0 = transform.rotation;
-            //将角速度的变化量转换成四元数
-            Quaternion w_q = new Quaternion(dt * w.x / 2, dt * w.y / 2, dt * w.z / 2, 0.0f);
-            Quaternion q_1 = QuatAdd(q_0, w_q * q_0);
+            //Update angular status ,将角速度的变化量转换成四元数相乘。
+            Quaternion q_w = new Quaternion(dt * w.x / 2, dt * w.y / 2, dt * w.z / 2, 0.0f);
+            Quaternion q_1 = QuatAdd(q_0, q_w * q_0);
             q_1 = Quaternion.Normalize(q_1);
             // Part IV: Assign to the object
             transform.position = x_1;
