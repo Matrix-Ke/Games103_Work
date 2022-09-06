@@ -7,11 +7,11 @@ public class implicit_model : MonoBehaviour
     float dt = 0.0333f;
     float mass = 1;
     float damping = 0.99f;
-    float rho = 0.995f;
+    //float rho = 0.995f;
     float spring_k = 8000;
     int[] E; //edge
     float[] L; //spring origin length
-    Vector3[] V;
+    Vector3[] V_velocity;
 
     Vector3 F_gravity = new Vector3(0.0f, -9.8f, 0.0f); //重力向量
 
@@ -89,9 +89,9 @@ public class implicit_model : MonoBehaviour
             L[e] = (X[v0] - X[v1]).magnitude;
         }
 
-        V = new Vector3[X.Length];
-        for (int i = 0; i < V.Length; i++)
-            V[i] = new Vector3(0, 0, 0);
+        V_velocity = new Vector3[X.Length];
+        for (int i = 0; i < V_velocity.Length; i++)
+            V_velocity[i] = new Vector3(0, 0, 0);
     }
 
     void Quick_Sort(ref int[] a, int l, int r)
@@ -134,11 +134,23 @@ public class implicit_model : MonoBehaviour
 
     void Collision_Handling()
     {
+        float r = 2.7f;
         Mesh mesh = GetComponent<MeshFilter>().mesh;
         Vector3[] X = mesh.vertices;
 
-        //Handle colllision.
+        //Handle colllision, detect collision and apply impulse if needed.
+        GameObject sphere = GameObject.Find("Sphere");
+        Vector3 c = sphere.transform.position;
 
+        for (int i = 0; i < X.Length; i++)
+        {
+            Vector3 xi_c = X[i] - c;
+            if (xi_c.magnitude < r)
+            {
+                V_velocity[i] += (c + r * xi_c / xi_c.magnitude - X[i]) / dt;
+                X[i] = c + r * xi_c / xi_c.magnitude;
+            }
+        }
         mesh.vertices = X;
     }
 
@@ -155,14 +167,16 @@ public class implicit_model : MonoBehaviour
         uint E_number = (uint)(E.Length / 2);
         for (int e = 0; e < E_number; e++)
         {
-            int P_index = E[e * 2];
-            Vector3 X_i = V[P_index];
-            Vector3 X_j = V[P_index + 1];
+            int i_index = E[e * 2 + 0];
+            int j_index = E[e * 2 + 1];
+            Vector3 X_i = X[i_index];
+            Vector3 X_j = X[j_index];
             Vector3 f = -spring_k * (1 - L[e] / (X_i - X_j).magnitude) * (X_i - X_j);
-            G[P_index] -= f;
-            G[P_index + 1] += f;
+            G[i_index] -= f;
+            G[j_index] += f;
         }
     }
+
 
     // Update is called once per frame
     void Update()
@@ -176,8 +190,8 @@ public class implicit_model : MonoBehaviour
         //Initial Setup.
         for (int i = 0; i < X.Length; i++)
         {
-            V[i] *= damping;
-            X_hat[i] = X[i] + V[i] * dt;
+            V_velocity[i] *= damping;
+            X_hat[i] = X[i] + V_velocity[i] * dt;
             X[i] = X_hat[i]; //x_i是初步猜测，不是真正的更新.(初始状态弹簧力为0，直接用速度去更新一段距离再计算出新的速度，然后采用隐式欧拉计算)
             //G[i] = mass * F_gravity;
         }
@@ -190,12 +204,22 @@ public class implicit_model : MonoBehaviour
             //Update X by gradient.将 Hessian 视为对角矩阵来选择更简单的方法
             for (int i = 0; i < X.Length; i++)
             {
-                X[i] -= 1 / (1 / (dt * dt) * mass + 4 * spring_k) * G_gradient[i];
-            }
+                if (i == 0 || i == 20) continue; //顶点固定
 
+                //x_i = x_i-(\frac{1}{\Delta t^2} m_i+4 k)^{-1} g_i\\
+                X[i] -= G_gradient[i] / (mass / (dt * dt) + 4 * spring_k);
+            }
         }
 
+
+
         //Finishing.
+        for (int i = 0; i < X.Length; i++)
+        {
+            //顶点固定
+            if (i == 0 || i == 20) continue;
+            V_velocity[i] += (X[i] - X_hat[i]) / dt;
+        }
 
         mesh.vertices = X;
 
