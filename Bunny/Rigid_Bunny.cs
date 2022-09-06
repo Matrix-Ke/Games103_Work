@@ -39,6 +39,11 @@ public class Rigid_Bunny : MonoBehaviour
             I_ref[0, 0] += diag;
             I_ref[1, 1] += diag;
             I_ref[2, 2] += diag;
+            //惯性张量的正确计算？
+            //Vector3 tempP = vertices[i];
+            //I_ref[0, 0] += m * (tempP.y * tempP.y + tempP.z * tempP.z);
+            //I_ref[1, 1] += m * (tempP.z * tempP.z + tempP.x * tempP.x);
+            //I_ref[2, 2] += m * (tempP.x * tempP.x + tempP.y * tempP.y);
             I_ref[0, 0] -= m * vertices[i][0] * vertices[i][0];
             I_ref[0, 1] -= m * vertices[i][0] * vertices[i][1];
             I_ref[0, 2] -= m * vertices[i][0] * vertices[i][2];
