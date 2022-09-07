@@ -7,9 +7,10 @@ public class implicit_model : MonoBehaviour
     float dt = 0.0333f;
     float mass = 1;
     float damping = 0.99f;
-    //float rho = 0.995f;
+    float rho = 0.995f;  //chebychev加速参数
     float spring_k = 8000;
     int[] E; //edge
+    int[] E_bending;
     float[] L; //spring origin length
     Vector3[] V_velocity;
 
@@ -49,7 +50,20 @@ public class implicit_model : MonoBehaviour
         mesh.RecalculateNormals();
 
 
-        //Construct the original E
+        ////Construct the original E, 修改边数据结构为triple list,得到E_bending弯曲边
+        //int[] _E = new int[triangles.Length * 3];
+        //for (int i = 0; i < triangles.Length; i += 3)
+        //{
+        //    _E[i * 3 + 0] = triangles[i + 0];
+        //    _E[i * 3 + 1] = triangles[i + 1];
+        //    _E[i * 3 + 2] = triangles[i];
+        //    _E[i * 3 + 3] = triangles[i + 1];
+        //    _E[i * 3 + 4] = triangles[i + 2];
+        //    _E[i * 3 + 5] = triangles[i];
+        //    _E[i * 3 + 6] = triangles[i + 2];
+        //    _E[i * 3 + 7] = triangles[i + 0];
+        //    _E[i * 3 + 8] = triangles[i];
+        //}
         int[] _E = new int[triangles.Length * 2];
         for (int i = 0; i < triangles.Length; i += 3)
         {
@@ -196,21 +210,41 @@ public class implicit_model : MonoBehaviour
             //G[i] = mass * F_gravity;
         }
 
-        //这里是做32次迭代。一般来说次数越多效果越好
+        ////这里是做32次迭代。一般来说次数越多效果越好
+        //for (int k = 0; k < 32; k++)
+        //{
+        //    Get_Gradient(X, X_hat, dt, G_gradient);
+
+        //    //Update X by gradient.将 Hessian 视为对角矩阵来选择更简单的方法
+        //    for (int i = 0; i < X.Length; i++)
+        //    {
+        //        if (i == 0 || i == 20) continue; //顶点固定
+
+        //        //x_i = x_i-(\frac{1}{\Delta t^2} m_i+4 k)^{-1} g_i\\
+        //        X[i] -= G_gradient[i] / (mass / (dt * dt) + 4 * spring_k);
+        //    }
+        //}
+
+        //Chebyshev Acceleration 
         for (int k = 0; k < 32; k++)
         {
-            Get_Gradient(X, X_hat, dt, G_gradient);
+            float w = 0;
+            Get_Gradient(X, X_hat, dt, G_gradient); // G = b - Ax = r
+            if (k == 0) w = 1;
+            //?? (?? < 1) is the estimated spectral radius of the iterative matrix
+            else if (k == 1) w = 2 / (2 - rho * rho);
+            else w = 4 / (4 - rho * rho * w);
 
-            //Update X by gradient.将 Hessian 视为对角矩阵来选择更简单的方法
+            Vector3[] old_X = X;
             for (int i = 0; i < X.Length; i++)
             {
-                if (i == 0 || i == 20) continue; //顶点固定
-
-                //x_i = x_i-(\frac{1}{\Delta t^2} m_i+4 k)^{-1} g_i\\
-                X[i] -= G_gradient[i] / (mass / (dt * dt) + 4 * spring_k);
+                if (i == 0 || i == 20) continue;
+                X[i] -= G_gradient[i] / (mass / (dt * dt) + 4 * spring_k); //alpha = 1, D = (mass/(t*t) + 4*spring_k)
+                X[i] = w * X[i] + (1 - w) * last_X[i];
             }
-        }
 
+            last_X = old_X;
+        }
 
 
         //Finishing.
